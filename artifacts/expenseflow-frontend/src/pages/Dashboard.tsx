@@ -24,6 +24,13 @@ interface Summary {
   categories: Record<string, number>;
 }
 
+interface EditForm {
+  title: string;
+  amount: string;
+  category: string;
+  note: string;
+}
+
 const card = (style?: React.CSSProperties): React.CSSProperties => ({
   background: "#fff",
   borderRadius: "12px",
@@ -33,6 +40,16 @@ const card = (style?: React.CSSProperties): React.CSSProperties => ({
   ...style,
 });
 
+const inputStyle: React.CSSProperties = {
+  padding: "7px 10px",
+  border: "1.5px solid #d1d5db",
+  borderRadius: "6px",
+  fontSize: "0.9rem",
+  outline: "none",
+  background: "#fff",
+  width: "100%",
+};
+
 export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") ?? "{}");
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -41,6 +58,9 @@ export default function Dashboard() {
   const [form, setForm] = useState({ title: "", amount: "", category: "Food", note: "" });
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ title: "", amount: "", category: "Food", note: "" });
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     try {
@@ -82,7 +102,40 @@ export default function Dashboard() {
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this expense?")) return;
     await api.delete(`/expenses/${id}`);
+    if (editingId === id) setEditingId(null);
     await load();
+  };
+
+  const startEdit = (exp: Expense) => {
+    setEditingId(exp.id);
+    setEditForm({
+      title: exp.title,
+      amount: String(exp.amount),
+      category: exp.category,
+      note: exp.note ?? "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleSaveEdit = async (id: number) => {
+    setSaving(true);
+    try {
+      await api.put(`/expenses/${id}`, {
+        title: editForm.title,
+        amount: parseFloat(editForm.amount),
+        category: editForm.category,
+        note: editForm.note || undefined,
+      });
+      setEditingId(null);
+      await load();
+    } catch {
+      alert("Failed to update expense.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const budgetRemaining = user.monthlyBudget
@@ -101,7 +154,7 @@ export default function Dashboard() {
       }
     : null;
 
-  const inputStyle: React.CSSProperties = {
+  const addInputStyle: React.CSSProperties = {
     width: "100%",
     padding: "10px 12px",
     border: "1.5px solid #e5e7eb",
@@ -175,24 +228,24 @@ export default function Dashboard() {
             <form onSubmit={handleAdd} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Title</label>
-                <input style={inputStyle} placeholder="e.g. Groceries" value={form.title}
+                <input style={addInputStyle} placeholder="e.g. Groceries" value={form.title}
                   onChange={e => setForm({ ...form, title: e.target.value })} required />
               </div>
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Amount ($)</label>
-                <input style={inputStyle} type="number" step="0.01" min="0" placeholder="0.00" value={form.amount}
+                <input style={addInputStyle} type="number" step="0.01" min="0" placeholder="0.00" value={form.amount}
                   onChange={e => setForm({ ...form, amount: e.target.value })} required />
               </div>
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Category</label>
-                <select style={inputStyle} value={form.category}
+                <select style={addInputStyle} value={form.category}
                   onChange={e => setForm({ ...form, category: e.target.value })}>
                   {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Note (optional)</label>
-                <input style={inputStyle} placeholder="Any notes…" value={form.note}
+                <input style={addInputStyle} placeholder="Any notes…" value={form.note}
                   onChange={e => setForm({ ...form, note: e.target.value })} />
               </div>
               <div style={{ display: "flex", alignItems: "flex-end" }}>
@@ -221,6 +274,11 @@ export default function Dashboard() {
           <div style={card()}>
             <h2 style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "16px", color: "#111827" }}>
               Recent Expenses
+              {expenses.length > 0 && (
+                <span style={{ fontSize: "0.78rem", fontWeight: 400, color: "#9ca3af", marginLeft: "8px" }}>
+                  click ✏️ to edit
+                </span>
+              )}
             </h2>
             {loading ? (
               <p style={{ color: "#9ca3af", textAlign: "center", padding: "32px 0" }}>Loading…</p>
@@ -232,53 +290,162 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {expenses.map((exp) => (
-                  <div key={exp.id} style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "14px 16px",
-                    background: "#f9fafb",
-                    borderRadius: "8px",
-                    border: "1px solid #f3f4f6",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div style={{
-                        width: "38px", height: "38px", borderRadius: "8px",
-                        background: "#eff6ff", display: "flex", alignItems: "center",
-                        justifyContent: "center", fontSize: "1.1rem", flexShrink: 0,
-                      }}>
-                        {categoryIcon(exp.category)}
+                {expenses.map((exp) =>
+                  editingId === exp.id ? (
+                    /* ── Inline edit row ── */
+                    <div key={exp.id} style={{
+                      padding: "16px",
+                      background: "#eff6ff",
+                      borderRadius: "10px",
+                      border: "1.5px solid #bfdbfe",
+                    }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 1fr", gap: "10px", marginBottom: "10px" }}>
+                        <div>
+                          <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "3px" }}>Title</label>
+                          <input
+                            style={inputStyle}
+                            value={editForm.title}
+                            onChange={e => setEditForm({ ...editForm, title: e.target.value })}
+                            autoFocus
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "3px" }}>Amount ($)</label>
+                          <input
+                            style={inputStyle}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={editForm.amount}
+                            onChange={e => setEditForm({ ...editForm, amount: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "3px" }}>Category</label>
+                          <select
+                            style={inputStyle}
+                            value={editForm.category}
+                            onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                          >
+                            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.95rem" }}>{exp.title}</p>
-                        <p style={{ fontSize: "0.8rem", color: "#9ca3af", marginTop: "2px" }}>
-                          {exp.category} · {new Date(exp.expenseDate).toLocaleDateString()}
-                        </p>
+                      <div style={{ marginBottom: "12px" }}>
+                        <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "3px" }}>Note (optional)</label>
+                        <input
+                          style={inputStyle}
+                          placeholder="Any notes…"
+                          value={editForm.note}
+                          onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                        />
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                        <button
+                          onClick={cancelEdit}
+                          style={{
+                            padding: "7px 16px",
+                            background: "#fff",
+                            border: "1.5px solid #d1d5db",
+                            borderRadius: "6px",
+                            fontWeight: 600,
+                            fontSize: "0.85rem",
+                            cursor: "pointer",
+                            color: "#374151",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleSaveEdit(exp.id)}
+                          disabled={saving}
+                          style={{
+                            padding: "7px 18px",
+                            background: saving ? "#93c5fd" : "#2563eb",
+                            border: "none",
+                            borderRadius: "6px",
+                            fontWeight: 700,
+                            fontSize: "0.85rem",
+                            cursor: saving ? "not-allowed" : "pointer",
+                            color: "#fff",
+                          }}
+                        >
+                          {saving ? "Saving…" : "Save Changes"}
+                        </button>
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <span style={{ fontWeight: 700, color: "#111827", fontSize: "1rem" }}>
-                        ${exp.amount.toFixed(2)}
-                      </span>
-                      <button onClick={() => handleDelete(exp.id)} style={{
-                        background: "none",
-                        border: "none",
-                        color: "#d1d5db",
-                        cursor: "pointer",
-                        fontSize: "1.1rem",
-                        padding: "4px",
-                        borderRadius: "4px",
-                        transition: "color 0.15s",
-                      }}
-                        onMouseOver={e => (e.currentTarget.style.color = "#ef4444")}
-                        onMouseOut={e => (e.currentTarget.style.color = "#d1d5db")}
-                      >
-                        ✕
-                      </button>
+                  ) : (
+                    /* ── Normal row ── */
+                    <div key={exp.id} style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "14px 16px",
+                      background: "#f9fafb",
+                      borderRadius: "8px",
+                      border: "1px solid #f3f4f6",
+                      transition: "background 0.1s",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{
+                          width: "38px", height: "38px", borderRadius: "8px",
+                          background: "#eff6ff", display: "flex", alignItems: "center",
+                          justifyContent: "center", fontSize: "1.1rem", flexShrink: 0,
+                        }}>
+                          {categoryIcon(exp.category)}
+                        </div>
+                        <div>
+                          <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.95rem" }}>{exp.title}</p>
+                          <p style={{ fontSize: "0.8rem", color: "#9ca3af", marginTop: "2px" }}>
+                            {exp.category} · {new Date(exp.expenseDate).toLocaleDateString()}
+                            {exp.note && <span style={{ fontStyle: "italic" }}> · {exp.note}</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: 700, color: "#111827", fontSize: "1rem", marginRight: "4px" }}>
+                          ${exp.amount.toFixed(2)}
+                        </span>
+                        <button
+                          onClick={() => startEdit(exp)}
+                          title="Edit"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#9ca3af",
+                            cursor: "pointer",
+                            fontSize: "1rem",
+                            padding: "4px 6px",
+                            borderRadius: "4px",
+                            transition: "color 0.15s",
+                          }}
+                          onMouseOver={e => (e.currentTarget.style.color = "#2563eb")}
+                          onMouseOut={e => (e.currentTarget.style.color = "#9ca3af")}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(exp.id)}
+                          title="Delete"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#d1d5db",
+                            cursor: "pointer",
+                            fontSize: "1.05rem",
+                            padding: "4px 6px",
+                            borderRadius: "4px",
+                            transition: "color 0.15s",
+                          }}
+                          onMouseOver={e => (e.currentTarget.style.color = "#ef4444")}
+                          onMouseOut={e => (e.currentTarget.style.color = "#d1d5db")}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             )}
           </div>
