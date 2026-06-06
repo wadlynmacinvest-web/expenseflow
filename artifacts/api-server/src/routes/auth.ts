@@ -82,4 +82,38 @@ router.get(
   }
 );
 
+router.put(
+  "/auth/profile",
+  authMiddleware,
+  async (req: AuthRequest, res): Promise<void> => {
+    const { fullName, monthlyBudget } = req.body as {
+      fullName?: string;
+      monthlyBudget?: number;
+    };
+
+    if (fullName == null && monthlyBudget == null) {
+      res.status(400).json({ message: "Provide fullName or monthlyBudget to update" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(usersTable)
+      .set({
+        ...(fullName !== undefined && { fullName }),
+        ...(monthlyBudget !== undefined && { monthlyBudget }),
+      })
+      .where(eq(usersTable.id, req.user!.id))
+      .returning({
+        id: usersTable.id,
+        fullName: usersTable.fullName,
+        email: usersTable.email,
+        monthlyBudget: usersTable.monthlyBudget,
+        createdAt: usersTable.createdAt,
+        updatedAt: usersTable.updatedAt,
+      });
+
+    res.json(updated);
+  }
+);
+
 export default router;
