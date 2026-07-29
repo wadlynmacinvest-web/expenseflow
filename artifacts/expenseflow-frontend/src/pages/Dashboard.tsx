@@ -24,6 +24,15 @@ interface Summary {
   categories: Record<string, number>;
 }
 
+interface Overview {
+  totalRevenue: number;
+  totalExpenses: number;
+  totalProfit: number;
+  totalDebt: number;
+  totalCredit: number;
+  period: string;
+}
+
 interface EditForm {
   title: string;
   amount: string;
@@ -54,15 +63,21 @@ export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") ?? "{}");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", amount: "", category: "Food", note: "" });
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ title: "", amount: "", category: "Food", note: "" });
   const [saving, setSaving] = useState(false);
 
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [period, setPeriod] = useState<string>("month");
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addType, setAddType] = useState<"revenue" | "expense" | "payable" | "receivable">("expense");
+
   const load = async () => {
+    setLoading(true);
     try {
       const [expRes, sumRes] = await Promise.all([
         api.get("/expenses"),
@@ -77,33 +92,28 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
+  const loadOverview = async (p = period) => {
+    setOverviewLoading(true);
     try {
-      await api.post("/expenses", {
-        title: form.title,
-        amount: parseFloat(form.amount),
-        category: form.category,
-        note: form.note || undefined,
-      });
-      setForm({ title: "", amount: "", category: "Food", note: "" });
-      setShowForm(false);
-      await load();
-    } catch {
-      alert("Failed to add expense.");
+      const res = await api.get(`/overview?period=${encodeURIComponent(p)}`);
+      setOverview(res.data);
+    } catch (err) {
+      // ignore
     } finally {
-      setSubmitting(false);
+      setOverviewLoading(false);
     }
   };
+
+  useEffect(() => { load(); loadOverview(); }, []);
+
+  useEffect(() => { loadOverview(period); }, [period]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this expense?")) return;
     await api.delete(`/expenses/${id}`);
     if (editingId === id) setEditingId(null);
     await load();
+    await loadOverview();
   };
 
   const startEdit = (exp: Expense) => {
@@ -116,9 +126,7 @@ export default function Dashboard() {
     });
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-  };
+  const cancelEdit = () => { setEditingId(null); };
 
   const handleSaveEdit = async (id: number) => {
     setSaving(true);
@@ -131,10 +139,31 @@ export default function Dashboard() {
       });
       setEditingId(null);
       await load();
+      await loadOverview();
     } catch {
       alert("Failed to update expense.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Add Transaction / Ledger submit handlers
+  const handleAddTransaction = async (payload: any) => {
+    setSubmitting(true);
+    try {
+      if (payload._endpoint === "transactions") {
+        await api.post("/transactions", payload.body);
+      } else {
+        await api.post("/ledger", payload.body);
+      }
+      setShowAddModal(false);
+      alert("Saved successfully");
+      await load();
+      await loadOverview();
+    } catch (err) {
+      alert("Failed to save.\n" + (err as any)?.message ?? "");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -154,53 +183,93 @@ export default function Dashboard() {
       }
     : null;
 
-  const addInputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "10px 12px",
-    border: "1.5px solid #e5e7eb",
-    borderRadius: "8px",
-    fontSize: "0.95rem",
-    outline: "none",
-    background: "#fff",
-  };
-
   return (
     <div style={{ minHeight: "100vh", background: "#f3f4f6" }}>
       <Navbar />
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "32px 20px" }}>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <h1 style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>
               Welcome back, {user?.fullName?.split(" ")[0]} 👋
             </h1>
-            <p style={{ color: "#6b7280", marginTop: "2px" }}>Here's your expense overview</p>
+            <p style={{ color: "#6b7280", marginTop: "2px" }}>Business overview</p>
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            style={{
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              padding: "11px 22px",
-              fontWeight: 700,
-              fontSize: "0.95rem",
-              cursor: "pointer",
-            }}
-          >
-            {showForm ? "✕ Cancel" : "+ Add Expense"}
-          </button>
+
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fff", padding: "6px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
+              <label style={{ fontSize: "0.85rem", color: "#6b7280", marginRight: "6px" }}>Period</label>
+              <select value={period} onChange={e => setPeriod(e.target.value)} style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid #d1d5db", background: "#fff" }}>
+                <option value="month">This Month</option>
+                <option value="bimonth">Last 2 Months</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+
+            <button
+              onClick={() => { setShowAddModal(true); setAddType("expense"); }}
+              style={{
+                background: "#2563eb",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "11px 18px",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                cursor: "pointer",
+              }}
+            >
+              + Add Transaction
+            </button>
+          </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Overview cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+          <div style={card()}>
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Revenue</p>
+            <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#047857", marginTop: "6px" }}>
+              {overviewLoading ? "—" : formatCurrency(overview?.totalRevenue ?? 0)}
+            </p>
+          </div>
+
+          <div style={card()}>
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Expenses</p>
+            <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#dc2626", marginTop: "6px" }}>
+              {overviewLoading ? "—" : formatCurrency(overview?.totalExpenses ?? 0)}
+            </p>
+          </div>
+
+          <div style={card()}>
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Profit</p>
+            <p style={{ fontSize: "1.6rem", fontWeight: 800, marginTop: "6px", color: overview && overview.totalProfit >= 0 ? "#059669" : "#ef4444" }}>
+              {overviewLoading ? "—" : formatCurrency(overview?.totalProfit ?? 0)}
+            </p>
+          </div>
+
+          <div style={card()}>
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Debt (You Owe)</p>
+            <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#ea580c", marginTop: "6px" }}>
+              {overviewLoading ? "—" : formatCurrency(overview?.totalDebt ?? 0)}
+            </p>
+          </div>
+
+          <div style={card()}>
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Credit (Owed to You)</p>
+            <p style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0ea5a4", marginTop: "6px" }}>
+              {overviewLoading ? "—" : formatCurrency(overview?.totalCredit ?? 0)}
+            </p>
+          </div>
+        </div>
+
+        {/* Existing small summary cards (kept) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Spent</p>
             <p style={{ fontSize: "1.9rem", fontWeight: 800, color: "#111827", marginTop: "6px" }}>
               ${(summary?.totalExpenses ?? 0).toFixed(2)}
-            </p>
+            }</p>
           </div>
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Transactions</p>
@@ -221,52 +290,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Add Expense Form */}
-        {showForm && (
-          <div style={{ ...card({ marginBottom: "24px" }) }}>
-            <h2 style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "16px", color: "#111827" }}>New Expense</h2>
-            <form onSubmit={handleAdd} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Title</label>
-                <input style={addInputStyle} placeholder="e.g. Groceries" value={form.title}
-                  onChange={e => setForm({ ...form, title: e.target.value })} required />
-              </div>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Amount ($)</label>
-                <input style={addInputStyle} type="number" step="0.01" min="0" placeholder="0.00" value={form.amount}
-                  onChange={e => setForm({ ...form, amount: e.target.value })} required />
-              </div>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Category</label>
-                <select style={addInputStyle} value={form.category}
-                  onChange={e => setForm({ ...form, category: e.target.value })}>
-                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "4px" }}>Note (optional)</label>
-                <input style={addInputStyle} placeholder="Any notes…" value={form.note}
-                  onChange={e => setForm({ ...form, note: e.target.value })} />
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <button type="submit" disabled={submitting} style={{
-                  width: "100%",
-                  padding: "10px",
-                  background: submitting ? "#93c5fd" : "#2563eb",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontWeight: 700,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  fontSize: "0.95rem",
-                }}>
-                  {submitting ? "Saving…" : "Save Expense"}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
         {/* Main content */}
         <div style={{ display: "grid", gridTemplateColumns: chartData ? "1fr 320px" : "1fr", gap: "20px", alignItems: "start" }}>
 
@@ -286,13 +309,13 @@ export default function Dashboard() {
               <div style={{ textAlign: "center", padding: "48px 0", color: "#9ca3af" }}>
                 <div style={{ fontSize: "2.5rem", marginBottom: "8px" }}>🧾</div>
                 <p style={{ fontWeight: 600 }}>No expenses yet</p>
-                <p style={{ fontSize: "0.85rem", marginTop: "4px" }}>Click "Add Expense" to get started</p>
+                <p style={{ fontSize: "0.85rem", marginTop: "4px" }}>Click "Add Transaction" to get started</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {expenses.map((exp) =>
                   editingId === exp.id ? (
-                    /* ── Inline edit row ── */
+                    /* Inline edit row */
                     <div key={exp.id} style={{
                       padding: "16px",
                       background: "#eff6ff",
@@ -375,7 +398,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ) : (
-                    /* ── Normal row ── */
+                    /* Normal row */
                     <div key={exp.id} style={{
                       display: "flex",
                       justifyContent: "space-between",
@@ -464,7 +487,7 @@ export default function Dashboard() {
                       <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: CHART_COLORS[i % CHART_COLORS.length], display: "inline-block" }} />
                       {cat}
                     </span>
-                    <span style={{ fontWeight: 600, color: "#111827" }}>${(amt as number).toFixed(2)}</span>
+                    <span style={{ fontWeight: 600, color: "#111827" }}>{formatCurrency(amt as number)}</span>
                   </div>
                 ))}
               </div>
@@ -472,9 +495,139 @@ export default function Dashboard() {
           )}
 
         </div>
+
+        {/* Add Transaction Modal */}
+        {showAddModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60 }}>
+            <div style={{ width: "720px", maxWidth: "96%", background: "#fff", borderRadius: "12px", padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Add Transaction</h3>
+                <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                <button onClick={() => setAddType("revenue")} style={{ padding: "8px 12px", borderRadius: "8px", border: addType === "revenue" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: "#fff" }}>Log Revenue</button>
+                <button onClick={() => setAddType("expense")} style={{ padding: "8px 12px", borderRadius: "8px", border: addType === "expense" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: "#fff" }}>Log Expense</button>
+                <button onClick={() => setAddType("payable")} style={{ padding: "8px 12px", borderRadius: "8px", border: addType === "payable" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: "#fff" }}>Log Debt</button>
+                <button onClick={() => setAddType("receivable")} style={{ padding: "8px 12px", borderRadius: "8px", border: addType === "receivable" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: "#fff" }}>Log Credit</button>
+              </div>
+
+              {/* Form */}
+              {addType === "revenue" || addType === "expense" ? (
+                <TransactionForm onSubmit={handleAddTransaction} type={addType} submitting={submitting} />
+              ) : (
+                <LedgerForm onSubmit={handleAddTransaction} type={addType} submitting={submitting} />
+              )}
+
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
+}
+
+function TransactionForm({ onSubmit, type, submitting }: { onSubmit: (payload: any) => Promise<void>; type: "revenue" | "expense"; submitting: boolean }) {
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
+
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    await onSubmit({ _endpoint: "transactions", body: { type, title, amount: parseFloat(amount), category, note: note || undefined, transactionDate: date } });
+  };
+
+  return (
+    <form onSubmit={submit} style={{ display: "grid", gap: "10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: "10px" }}>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} required />
+        </div>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Amount</label>
+          <input value={amount} onChange={e => setAmount(e.target.value)} style={inputStyle} type="number" step="0.01" min="0" required />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Category</label>
+          <select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle}>
+            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Date</label>
+          <input type="date" value={date ?? ""} onChange={e => setDate(e.target.value)} style={inputStyle} />
+        </div>
+      </div>
+
+      <div>
+        <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Note (optional)</label>
+        <input value={note} onChange={e => setNote(e.target.value)} style={inputStyle} />
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+        <button type="submit" disabled={submitting} style={{ padding: "8px 14px", borderRadius: "8px", border: "none", background: submitting ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700 }}>{submitting ? "Saving…" : "Save"}</button>
+      </div>
+    </form>
+  );
+}
+
+function LedgerForm({ onSubmit, type, submitting }: { onSubmit: (payload: any) => Promise<void>; type: "payable" | "receivable"; submitting: boolean }) {
+  const [counterpartyName, setCounterpartyName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    await onSubmit({ _endpoint: "ledger", body: { type, counterpartyName, amount: parseFloat(amount), dueDate: dueDate ?? undefined, note: note || undefined } });
+  };
+
+  return (
+    <form onSubmit={submit} style={{ display: "grid", gap: "10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: "10px" }}>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>{type === "payable" ? "Who you owe" : "Who owes you"}</label>
+          <input value={counterpartyName} onChange={e => setCounterpartyName(e.target.value)} style={inputStyle} required />
+        </div>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Amount</label>
+          <input value={amount} onChange={e => setAmount(e.target.value)} style={inputStyle} type="number" step="0.01" min="0" required />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+        <div>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Due Date (optional)</label>
+          <input type="date" value={dueDate ?? ""} onChange={e => setDueDate(e.target.value)} style={inputStyle} />
+        </div>
+      </div>
+
+      <div>
+        <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Note (optional)</label>
+        <input value={note} onChange={e => setNote(e.target.value)} style={inputStyle} />
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+        <button type="submit" disabled={submitting} style={{ padding: "8px 14px", borderRadius: "8px", border: "none", background: submitting ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700 }}>{submitting ? "Saving…" : "Save"}</button>
+      </div>
+    </form>
+  );
+}
+
+function formatCurrency(val: number) {
+  // Try to detect existing formatting in app — default to Naira if not available
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: "NGN" }).format(val);
+  } catch {
+    return `₦${val.toFixed(2)}`;
+  }
 }
 
 function categoryIcon(category: string) {
