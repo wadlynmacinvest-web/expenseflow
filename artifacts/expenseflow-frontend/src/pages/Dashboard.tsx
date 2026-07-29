@@ -3,6 +3,8 @@ import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import Navbar from "../components/Navbar";
 import api from "../services/api";
+import { Spinner } from "../components/ui/spinner";
+import { useToast } from "../hooks/use-toast";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -61,6 +63,19 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<EditForm>({ title: "", amount: "", category: "Food", note: "" });
   const [saving, setSaving] = useState(false);
+  // Overview state for business-owner summary cards
+  const [overview, setOverview] = useState<null | {
+    totalRevenue: number;
+    totalExpenses: number;
+    totalProfit: number;
+    totalDebt: number;
+    totalCredit: number;
+    period: string;
+  }>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewPeriod, setOverviewPeriod] = useState<"month" | "bimonth" | "all">("month");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const toast = useToast();
 
   const load = async () => {
     try {
@@ -77,7 +92,21 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  const loadOverview = async (periodParam: "month" | "bimonth" | "all" = overviewPeriod) => {
+    setOverviewLoading(true);
+    try {
+      const res = await api.get(`/overview?period=${periodParam}`);
+      setOverview(res.data);
+    } catch (err) {
+      // ignore
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); loadOverview(); }, []);
+
+  useEffect(() => { loadOverview(overviewPeriod); }, [overviewPeriod]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,31 +224,55 @@ export default function Dashboard() {
         </div>
 
         {/* Summary Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-          <div style={card()}>
-            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Spent</p>
-            <p style={{ fontSize: "1.9rem", fontWeight: 800, color: "#111827", marginTop: "6px" }}>
-              ${(summary?.totalExpenses ?? 0).toFixed(2)}
-            </p>
-          </div>
-          <div style={card()}>
-            <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Transactions</p>
-            <p style={{ fontSize: "1.9rem", fontWeight: 800, color: "#111827", marginTop: "6px" }}>
-              {summary?.totalTransactions ?? 0}
-            </p>
-          </div>
-          {budgetRemaining !== null && (
-            <div style={card()}>
-              <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Budget Left</p>
-              <p style={{
-                fontSize: "1.9rem", fontWeight: 800, marginTop: "6px",
-                color: budgetRemaining >= 0 ? "#059669" : "#dc2626",
-              }}>
-                ${budgetRemaining.toFixed(2)}
-              </p>
-            </div>
-          )}
-        </div>
+        <div style={{ marginBottom: "20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button onClick={() => setOverviewPeriod("month")} style={{ padding: "8px 12px", borderRadius: 8, border: overviewPeriod === "month" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: overviewPeriod === "month" ? "#eff6ff" : "#fff" }}>This Month</button>
+                      <button onClick={() => setOverviewPeriod("bimonth")} style={{ padding: "8px 12px", borderRadius: 8, border: overviewPeriod === "bimonth" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: overviewPeriod === "bimonth" ? "#eff6ff" : "#fff" }}>Last 2 Months</button>
+                      <button onClick={() => setOverviewPeriod("all")} style={{ padding: "8px 12px", borderRadius: 8, border: overviewPeriod === "all" ? "2px solid #2563eb" : "1px solid #e5e7eb", background: overviewPeriod === "all" ? "#eff6ff" : "#fff" }}>All Time</button>
+                    </div>
+                    <div>
+                      <button onClick={() => setShowAddModal(true)} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 16px", fontWeight: 700, cursor: "pointer" }}>+ Add Transaction</button>
+                    </div>
+                  </div>
+
+                  {overviewLoading ? (
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <div style={card({ flex: 1 })}><div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div></div>
+                      <div style={card({ flex: 1 })}><div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div></div>
+                      <div style={card({ flex: 1 })}><div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div></div>
+                      <div style={card({ flex: 1 })}><div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div></div>
+                      <div style={card({ flex: 1 })}><div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div></div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+                      <div style={card({ borderLeft: "4px solid #10b981" })}>
+                        <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase" }}>Total Revenue</p>
+                        <p style={{ fontSize: "1.9rem", fontWeight: 800, color: "#059669", marginTop: "6px" }}>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(overview?.totalRevenue ?? 0)}</p>
+                      </div>
+
+                      <div style={card({ borderLeft: "4px solid #ef4444" })}>
+                        <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase" }}>Total Expenses</p>
+                        <p style={{ fontSize: "1.9rem", fontWeight: 800, color: "#ef4444", marginTop: "6px" }}>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(overview?.totalExpenses ?? 0)}</p>
+                      </div>
+
+                      <div style={card({ borderLeft: "4px solid #2563eb" })}>
+                        <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase" }}>Total Profit</p>
+                        <p style={{ fontSize: "1.9rem", fontWeight: 800, marginTop: "6px", color: (overview?.totalProfit ?? 0) >= 0 ? '#059669' : '#ef4444' }}>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(overview?.totalProfit ?? 0)}</p>
+                      </div>
+
+                      <div style={card({ borderLeft: "4px solid #f59e0b" })}>
+                        <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase" }}>Total Debt (You Owe)</p>
+                        <p style={{ fontSize: "1.3rem", fontWeight: 700, color: "#c2410c", marginTop: "6px" }}>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(overview?.totalDebt ?? 0)}</p>
+                      </div>
+
+                      <div style={card({ borderLeft: "4px solid #06b6d4" })}>
+                        <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase" }}>Total Credit (Owed to You)</p>
+                        <p style={{ fontSize: "1.3rem", fontWeight: 700, color: "#0b9481", marginTop: "6px" }}>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(overview?.totalCredit ?? 0)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
         {/* Add Expense Form */}
         {showForm && (

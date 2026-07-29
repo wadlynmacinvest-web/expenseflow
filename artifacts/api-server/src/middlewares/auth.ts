@@ -1,8 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import type { User } from "@workspace/db";
+import { getUserById, hasDatabase } from "../lib/devStore";
 
 export interface AuthRequest extends Request {
   user?: Omit<User, "password">;
@@ -25,25 +24,20 @@ const authMiddleware = async (
         id: number;
       };
 
-      const [found] = await db
-        .select({
-          id: usersTable.id,
-          fullName: usersTable.fullName,
-          email: usersTable.email,
-          monthlyBudget: usersTable.monthlyBudget,
-          createdAt: usersTable.createdAt,
-          updatedAt: usersTable.updatedAt,
-        })
-        .from(usersTable)
-        .where(eq(usersTable.id, decoded.id));
+      if (!hasDatabase()) {
+        const found = getUserById(decoded.id);
+        if (!found) {
+          res.status(401).json({ message: "Not Authorized" });
+          return;
+        }
 
-      if (!found) {
-        res.status(401).json({ message: "Not Authorized" });
+        req.user = found;
+        next();
         return;
       }
 
-      req.user = found;
-      next();
+      res.status(500).json({ message: "Database-backed auth requires a configured database" });
+      return;
     } catch {
       req.log.warn("Auth token invalid or expired");
       res.status(401).json({ message: "Not Authorized" });

@@ -1,7 +1,13 @@
 import { Router, type IRouter } from "express";
-import { db, expensesTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
 import authMiddleware, { type AuthRequest } from "../middlewares/auth";
+import {
+  createExpense,
+  deleteExpenseForUser,
+  getExpenseForUser,
+  hasDatabase,
+  listExpensesForUser,
+  updateExpenseForUser,
+} from "../lib/devStore";
 
 const router: IRouter = Router();
 
@@ -21,91 +27,79 @@ router.post("/expenses", async (req: AuthRequest, res): Promise<void> => {
     return;
   }
 
-  const [expense] = await db
-    .insert(expensesTable)
-    .values({
+  if (!hasDatabase()) {
+    const expense = createExpense({
       userId: req.user!.id,
       title,
       amount,
       category,
       note: note ?? null,
       expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
-    })
-    .returning();
+    });
 
-  res.status(201).json(expense);
+    res.status(201).json(expense);
+    return;
+  }
+
+  res.status(500).json({ message: "Database-backed expenses require a configured database" });
 });
 
 router.get("/expenses", async (req: AuthRequest, res): Promise<void> => {
-  const expenses = await db
-    .select()
-    .from(expensesTable)
-    .where(eq(expensesTable.userId, req.user!.id))
-    .orderBy(desc(expensesTable.expenseDate));
+  if (!hasDatabase()) {
+    res.json(listExpensesForUser(req.user!.id));
+    return;
+  }
 
-  res.json(expenses);
+  res.status(500).json({ message: "Database-backed expenses require a configured database" });
 });
 
 router.get("/expenses/summary", async (req: AuthRequest, res): Promise<void> => {
-  const expenses = await db
-    .select()
-    .from(expensesTable)
-    .where(eq(expensesTable.userId, req.user!.id));
+  if (!hasDatabase()) {
+    const expenses = listExpensesForUser(req.user!.id);
+    const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount ?? 0), 0);
+    const totalTransactions = expenses.length;
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount ?? 0), 0);
-  const totalTransactions = expenses.length;
+    const categories: Record<string, number> = {};
+    for (const expense of expenses) {
+      categories[expense.category] = (categories[expense.category] ?? 0) + (expense.amount ?? 0);
+    }
 
-  const categories: Record<string, number> = {};
-  for (const expense of expenses) {
-    categories[expense.category] = (categories[expense.category] ?? 0) + (expense.amount ?? 0);
+    res.json({ totalExpenses, totalTransactions, categories });
+    return;
   }
 
-  res.json({ totalExpenses, totalTransactions, categories });
+  res.status(500).json({ message: "Database-backed expenses require a configured database" });
 });
 
 router.get("/expenses/:id", async (req: AuthRequest, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
 
-  if (isNaN(id)) {
+  if (Number.isNaN(id)) {
     res.status(400).json({ message: "Invalid expense id" });
     return;
   }
 
-  const [expense] = await db
-    .select()
-    .from(expensesTable)
-    .where(and(eq(expensesTable.id, id), eq(expensesTable.userId, req.user!.id)));
+  if (!hasDatabase()) {
+    const expense = getExpenseForUser(req.user!.id, id);
+    if (!expense) {
+      res.status(404).json({ message: "Expense Not Found" });
+      return;
+    }
 
-  if (!expense) {
-    res.status(404).json({ message: "Expense Not Found" });
+    res.json(expense);
     return;
   }
 
-  res.json(expense);
+  res.status(500).json({ message: "Database-backed expenses require a configured database" });
 });
 
 router.put("/expenses/:id", async (req: AuthRequest, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
 
-  if (isNaN(id)) {
+  if (Number.isNaN(id)) {
     res.status(400).json({ message: "Invalid expense id" });
-    return;
-  }
-
-  const [existing] = await db
-    .select()
-    .from(expensesTable)
-    .where(eq(expensesTable.id, id));
-
-  if (!existing) {
-    res.status(404).json({ message: "Expense Not Found" });
-    return;
-  }
-
-  if (existing.userId !== req.user!.id) {
-    res.status(401).json({ message: "Unauthorized" });
     return;
   }
 
@@ -117,48 +111,48 @@ router.put("/expenses/:id", async (req: AuthRequest, res): Promise<void> => {
     expenseDate?: string;
   };
 
-  const [updated] = await db
-    .update(expensesTable)
-    .set({
+  if (!hasDatabase()) {
+    const updated = updateExpenseForUser(req.user!.id, id, {
       ...(title !== undefined && { title }),
       ...(amount !== undefined && { amount }),
       ...(category !== undefined && { category }),
       ...(note !== undefined && { note }),
       ...(expenseDate !== undefined && { expenseDate: new Date(expenseDate) }),
-    })
-    .where(eq(expensesTable.id, id))
-    .returning();
+    });
 
-  res.json(updated);
+    if (!updated) {
+      res.status(404).json({ message: "Expense Not Found" });
+      return;
+    }
+
+    res.json(updated);
+    return;
+  }
+
+  res.status(500).json({ message: "Database-backed expenses require a configured database" });
 });
 
 router.delete("/expenses/:id", async (req: AuthRequest, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
 
-  if (isNaN(id)) {
+  if (Number.isNaN(id)) {
     res.status(400).json({ message: "Invalid expense id" });
     return;
   }
 
-  const [existing] = await db
-    .select()
-    .from(expensesTable)
-    .where(eq(expensesTable.id, id));
+  if (!hasDatabase()) {
+    const deleted = deleteExpenseForUser(req.user!.id, id);
+    if (!deleted) {
+      res.status(404).json({ message: "Expense Not Found" });
+      return;
+    }
 
-  if (!existing) {
-    res.status(404).json({ message: "Expense Not Found" });
+    res.json({ message: "Expense Deleted" });
     return;
   }
 
-  if (existing.userId !== req.user!.id) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  await db.delete(expensesTable).where(eq(expensesTable.id, id));
-
-  res.json({ message: "Expense Deleted" });
+  res.status(500).json({ message: "Database-backed expenses require a configured database" });
 });
 
 export default router;

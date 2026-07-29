@@ -1,0 +1,47 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "fullName": "Local Tester",
+      "email": "local@test.com",
+      "password": "$2b$10$Uy6.uGvQgQVNZmJJFIRYl.X2aoXoc7dXtnq0d1/kLJq972uMZBnKy",
+      "monthlyBudget": 0,
+      "createdAt": "2026-07-29T11:24:14.758Z",
+      "updatedAt": "2026-07-29T11:24:14.758Z"
+    }
+  ],
+  "expenses": [],
+  "transactions": [
+    {
+      "id": 1,
+      "userId": 1,
+      "type": "revenue",
+      "title": "Consulting",
+      "amount": 1500,
+      "category": "Services",
+      "note": "Local test",
+      "transactionDate": "2026-07-29T00:00:00.000Z",
+      "createdAt": "2026-07-29T11:25:18.969Z",
+      "updatedAt": "2026-07-29T11:25:18.969Z"
+    }
+  ],
+  "ledgerEntries": [
+    {
+      "id": 1,
+      "userId": 1,
+      "type": "payable",
+      "counterpartyName": "Supplier",
+      "amount": 400,
+      "status": "outstanding",
+      "dueDate": "2026-08-10T00:00:00.000Z",
+      "note": "Local test debt",
+      "entryDate": "2026-07-29T11:25:44.547Z",
+      "createdAt": "2026-07-29T11:25:44.547Z",
+      "updatedAt": "2026-07-29T11:25:44.547Z"
+    }
+  ],
+  "nextUserId": 2,
+  "nextExpenseId": 1,
+  "nextTransactionId": 2,
+  "nextLedgerEntryId": 2
+}
