@@ -269,7 +269,7 @@ export default function Dashboard() {
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Spent</p>
             <p style={{ fontSize: "1.9rem", fontWeight: 800, color: "#111827", marginTop: "6px" }}>
               ${(summary?.totalExpenses ?? 0).toFixed(2)}
-            }</p>
+            </p>
           </div>
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Transactions</p>
