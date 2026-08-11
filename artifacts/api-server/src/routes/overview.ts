@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, transactionsTable, ledgerEntriesTable } from "@workspace/db";
-import { eq, gte } from "drizzle-orm";
+import { eq, gte, and } from "drizzle-orm";
 import authMiddleware, { type AuthRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -22,10 +22,9 @@ router.get("/overview", async (req: AuthRequest, res): Promise<void> => {
   const period = typeof req.query.period === "string" ? req.query.period : "month";
   const start = periodStart(period);
 
-  // Transactions (respect period)
-  let txQuery = db.select().from(transactionsTable).where(eq(transactionsTable.userId, req.user!.id));
-  if (start) txQuery = txQuery.where(gte(transactionsTable.transactionDate, start));
-  const transactions = await txQuery;
+  const txConditions = [eq(transactionsTable.userId, req.user!.id)];
+  if (start) txConditions.push(gte(transactionsTable.transactionDate, start));
+  const transactions = await db.select().from(transactionsTable).where(and(...txConditions));
 
   const totalRevenue = transactions
     .filter((t) => t.type === "revenue")
@@ -35,7 +34,6 @@ router.get("/overview", async (req: AuthRequest, res): Promise<void> => {
     .reduce((s, t) => s + (t.amount ?? 0), 0);
   const totalProfit = totalRevenue - totalExpenses;
 
-  // Ledger (outstanding balances, not period-filtered)
   const ledger = await db
     .select()
     .from(ledgerEntriesTable)

@@ -93,17 +93,21 @@ router.get("/ledger", async (req: AuthRequest, res): Promise<void> => {
 
   const start = periodStart(period);
 
-  let q = db.select().from(ledgerEntriesTable).where(eq(ledgerEntriesTable.userId, req.user!.id));
+  const conditions = [eq(ledgerEntriesTable.userId, req.user!.id)];
 
   if (type && (type === "payable" || type === "receivable")) {
-    q = q.where(eq(ledgerEntriesTable.type, type as any));
+    conditions.push(eq(ledgerEntriesTable.type, type as any));
   }
 
   if (start) {
-    q = q.where(gte(ledgerEntriesTable.entryDate, start));
+    conditions.push(gte(ledgerEntriesTable.entryDate, start));
   }
 
-  const entries = await q.orderBy(desc(ledgerEntriesTable.entryDate));
+  const entries = await db
+    .select()
+    .from(ledgerEntriesTable)
+    .where(and(...conditions))
+    .orderBy(desc(ledgerEntriesTable.entryDate));
 
   res.json(entries);
 });

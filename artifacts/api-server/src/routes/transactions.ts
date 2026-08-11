@@ -13,10 +13,9 @@ function periodStart(period?: string): Date | null {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   }
   if (period === "bimonth") {
-    // first day of previous month (includes current and previous month)
     return new Date(now.getFullYear(), Math.max(0, now.getMonth() - 1), 1);
   }
-  return null; // 'all' or unknown
+  return null;
 }
 
 router.post("/transactions", async (req: AuthRequest, res): Promise<void> => {
@@ -56,17 +55,21 @@ router.get("/transactions", async (req: AuthRequest, res): Promise<void> => {
 
   const start = periodStart(period);
 
-  let q = db.select().from(transactionsTable).where(eq(transactionsTable.userId, req.user!.id));
+  const conditions = [eq(transactionsTable.userId, req.user!.id)];
 
   if (type && (type === "revenue" || type === "expense")) {
-    q = q.where(eq(transactionsTable.type, type as any));
+    conditions.push(eq(transactionsTable.type, type as any));
   }
 
   if (start) {
-    q = q.where(gte(transactionsTable.transactionDate, start));
+    conditions.push(gte(transactionsTable.transactionDate, start));
   }
 
-  const transactions = await q.orderBy(desc(transactionsTable.transactionDate));
+  const transactions = await db
+    .select()
+    .from(transactionsTable)
+    .where(and(...conditions))
+    .orderBy(desc(transactionsTable.transactionDate));
 
   res.json(transactions);
 });
