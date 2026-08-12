@@ -76,6 +76,11 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addType, setAddType] = useState<"revenue" | "expense" | "payable" | "receivable">("expense");
 
+  const [recentTx, setRecentTx] = useState<any[]>([]);
+  const [recentTxLoading, setRecentTxLoading] = useState(true);
+  const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(true);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -104,9 +109,33 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { load(); loadOverview(); }, []);
+  const loadRecentTx = async (p = period) => {
+    setRecentTxLoading(true);
+    try {
+      const res = await api.get(`/transactions?period=${encodeURIComponent(p)}`);
+      setRecentTx(res.data);
+    } catch {
+      // ignore
+    } finally {
+      setRecentTxLoading(false);
+    }
+  };
 
-  useEffect(() => { loadOverview(period); }, [period]);
+  const loadLedger = async () => {
+    setLedgerLoading(true);
+    try {
+      const res = await api.get(`/ledger?period=all`);
+      setLedgerEntries(res.data);
+    } catch {
+      // ignore
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); loadOverview(); loadRecentTx(); loadLedger(); }, []);
+
+  useEffect(() => { loadOverview(period); loadRecentTx(period); }, [period]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this expense?")) return;
@@ -160,10 +189,23 @@ export default function Dashboard() {
       alert("Saved successfully");
       await load();
       await loadOverview();
+      await loadRecentTx();
+      await loadLedger();
     } catch (err) {
       alert("Failed to save.\n" + (err as any)?.message ?? "");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleMarkSettled = async (id: number, currentStatus: string) => {
+    const nextStatus = currentStatus === "settled" ? "outstanding" : "settled";
+    try {
+      await api.patch(`/ledger/${id}`, { status: nextStatus });
+      await loadLedger();
+      await loadOverview();
+    } catch {
+      alert("Failed to update status.");
     }
   };
 
@@ -288,6 +330,121 @@ export default function Dashboard() {
               </p>
             </div>
           )}
+        </div>
+
+        {/* Recent Transactions + Debts & Credits */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
+          <div style={card()}>
+            <h2 style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "16px", color: "#111827" }}>
+              Recent Transactions
+            </h2>
+            {recentTxLoading ? (
+              <p style={{ color: "#9ca3af", textAlign: "center", padding: "24px 0" }}>Loading…</p>
+            ) : recentTx.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "#9ca3af" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "6px" }}>💳</div>
+                <p style={{ fontWeight: 600 }}>No transactions yet</p>
+                <p style={{ fontSize: "0.85rem", marginTop: "4px" }}>Use "Add Transaction" to log revenue or an expense</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "360px", overflowY: "auto" }}>
+                {recentTx.map((tx: any) => (
+                  <div
+                    key={tx.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "#f9fafb",
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>{tx.title}</p>
+                      <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
+                        {tx.category} · {new Date(tx.transactionDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: tx.type === "revenue" ? "#059669" : "#ef4444",
+                      }}
+                    >
+                      {tx.type === "revenue" ? "+" : "-"}{formatCurrency(tx.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={card()}>
+            <h2 style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "16px", color: "#111827" }}>
+              Debts & Credits
+            </h2>
+            {ledgerLoading ? (
+              <p style={{ color: "#9ca3af", textAlign: "center", padding: "24px 0" }}>Loading…</p>
+            ) : ledgerEntries.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "#9ca3af" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "6px" }}>🤝</div>
+                <p style={{ fontWeight: 600 }}>No debts or credits yet</p>
+                <p style={{ fontSize: "0.85rem", marginTop: "4px" }}>Use "Add Transaction" to log a debt or credit</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "360px", overflowY: "auto" }}>
+                {ledgerEntries.map((entry: any) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: entry.status === "settled" ? "#f0fdf4" : "#f9fafb",
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>
+                        {entry.counterpartyName}
+                      </p>
+                      <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
+                        {entry.type === "payable" ? "You owe" : "Owed to you"}
+                        {entry.dueDate ? ` · due ${new Date(entry.dueDate).toLocaleDateString()}` : ""}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: entry.type === "payable" ? "#f97316" : "#0d9488",
+                        }}
+                      >
+                        {formatCurrency(entry.amount)}
+                      </span>
+                      <button
+                        onClick={() => handleMarkSettled(entry.id, entry.status)}
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid #d1d5db",
+                          background: entry.status === "settled" ? "#dcfce7" : "#fff",
+                          color: entry.status === "settled" ? "#166534" : "#374151",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {entry.status === "settled" ? "Settled" : "Mark Settled"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Main content */}
