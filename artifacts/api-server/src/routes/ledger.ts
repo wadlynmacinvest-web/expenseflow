@@ -51,7 +51,7 @@ router.post("/ledger", async (req: AuthRequest, res): Promise<void> => {
       counterpartyName,
       amount,
       status: "outstanding",
-      dueDate: dueDate ? new Date(dueDate) : null,
+      dueDate: dueDate ? new Date(dueDate + "T12:00:00Z") : null,
       note: note ?? null,
     })
     .returning();

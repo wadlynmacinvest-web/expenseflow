@@ -53,7 +53,7 @@ router.post("/transactions", async (req: AuthRequest, res): Promise<void> => {
       amount,
       category,
       note: note ?? null,
-      transactionDate: transactionDate ? new Date(transactionDate) : new Date(),
+      transactionDate: transactionDate ? new Date(transactionDate + "T12:00:00Z") : new Date(),
     })
     .returning();
 

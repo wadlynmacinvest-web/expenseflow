@@ -257,34 +257,46 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "360px", overflowY: "auto" }}>
-                {recentTx.map((tx: any) => (
-                  <div
-                    key={tx.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      background: "#f9fafb",
-                    }}
-                  >
-                    <div>
-                      <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>{tx.title}</p>
-                      <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
-                        {tx.category} · {new Date(tx.transactionDate).toLocaleDateString()}
+                {(["revenue", "expense"] as const).map((t) => {
+                  const group = recentTx.filter((tx: any) => tx.type === t);
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={t}>
+                      <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
+                        {t === "revenue" ? "Revenue" : "Expense"}
                       </p>
+                      {group.map((tx: any) => (
+                        <div
+                          key={tx.id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            background: "#f9fafb",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>{tx.title}</p>
+                            <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
+                              {tx.category} · {new Date(tx.transactionDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: tx.type === "revenue" ? "#059669" : "#ef4444",
+                            }}
+                          >
+                            {tx.type === "revenue" ? "+" : "-"}{formatCurrency(tx.amount)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color: tx.type === "revenue" ? "#059669" : "#ef4444",
-                      }}
-                    >
-                      {tx.type === "revenue" ? "+" : "-"}{formatCurrency(tx.amount)}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -303,54 +315,66 @@ export default function Dashboard() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "360px", overflowY: "auto" }}>
-                {ledgerEntries.map((entry: any) => (
-                  <div
-                    key={entry.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      background: entry.status === "settled" ? "#f0fdf4" : "#f9fafb",
-                    }}
-                  >
-                    <div>
-                      <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>
-                        {entry.counterpartyName}
+                {(["outstanding", "settled"] as const).map((s) => {
+                  const group = ledgerEntries.filter((e: any) => e.status === s);
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={s}>
+                      <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
+                        {s === "outstanding" ? "Outstanding" : "Settled"}
                       </p>
-                      <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
-                        {entry.type === "payable" ? "You owe" : "Owed to you"}
-                        {entry.dueDate ? ` · due ${new Date(entry.dueDate).toLocaleDateString()}` : ""}
-                      </p>
+                      {group.map((entry: any) => (
+                        <div
+                          key={entry.id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            background: entry.status === "settled" ? "#f0fdf4" : "#f9fafb",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>
+                              {entry.counterpartyName}
+                            </p>
+                            <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
+                              {entry.type === "payable" ? "You owe" : "Owed to you"}
+                              {entry.dueDate ? ` · due ${new Date(entry.dueDate).toLocaleDateString()}` : ""}
+                            </p>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                color: entry.type === "payable" ? "#f97316" : "#0d9488",
+                              }}
+                            >
+                              {formatCurrency(entry.amount)}
+                            </span>
+                            <button
+                              onClick={() => handleMarkSettled(entry.id, entry.status)}
+                              style={{
+                                fontSize: "0.72rem",
+                                fontWeight: 600,
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                border: "1px solid #d1d5db",
+                                background: entry.status === "settled" ? "#dcfce7" : "#fff",
+                                color: entry.status === "settled" ? "#166534" : "#374151",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {entry.status === "settled" ? "Settled" : "Mark Settled"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: entry.type === "payable" ? "#f97316" : "#0d9488",
-                        }}
-                      >
-                        {formatCurrency(entry.amount)}
-                      </span>
-                      <button
-                        onClick={() => handleMarkSettled(entry.id, entry.status)}
-                        style={{
-                          fontSize: "0.72rem",
-                          fontWeight: 600,
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid #d1d5db",
-                          background: entry.status === "settled" ? "#dcfce7" : "#fff",
-                          color: entry.status === "settled" ? "#166534" : "#374151",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {entry.status === "settled" ? "Settled" : "Mark Settled"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -392,7 +416,7 @@ function TransactionForm({ onSubmit, type, submitting }: { onSubmit: (payload: a
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [note, setNote] = useState("");
-  const [date, setDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string | null>(toLocalDateInput(new Date()));
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -478,6 +502,13 @@ function LedgerForm({ onSubmit, type, submitting }: { onSubmit: (payload: any) =
       </div>
     </form>
   );
+}
+
+function toLocalDateInput(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function formatCurrency(val: number) {
