@@ -1,21 +1,32 @@
 import { Router, type IRouter } from "express";
 import { db, ledgerEntriesTable } from "@workspace/db";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, lt } from "drizzle-orm";
 import authMiddleware, { type AuthRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 router.use(authMiddleware);
 
-function periodStart(period?: string): Date | null {
+function periodRange(period?: string, month?: string, year?: string): { start: Date | null; end: Date | null } {
   const now = new Date();
+
+  if (period === "custom" && month && year) {
+    const m = parseInt(month, 10) - 1;
+    const y = parseInt(year, 10);
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 1);
+    return { start, end };
+  }
+
   if (!period || period === "month") {
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: null };
   }
+
   if (period === "bimonth") {
-    return new Date(now.getFullYear(), Math.max(0, now.getMonth() - 1), 1);
+    return { start: new Date(now.getFullYear(), Math.max(0, now.getMonth() - 1), 1), end: null };
   }
-  return null;
+
+  return { start: null, end: null };
 }
 
 router.post("/ledger", async (req: AuthRequest, res): Promise<void> => {
@@ -90,8 +101,10 @@ router.patch("/ledger/:id", async (req: AuthRequest, res): Promise<void> => {
 router.get("/ledger", async (req: AuthRequest, res): Promise<void> => {
   const period = typeof req.query.period === "string" ? req.query.period : "month";
   const type = typeof req.query.type === "string" ? req.query.type : undefined;
+  const month = typeof req.query.month === "string" ? req.query.month : undefined;
+  const year = typeof req.query.year === "string" ? req.query.year : undefined;
 
-  const start = periodStart(period);
+  const { start, end } = periodRange(period, month, year);
 
   const conditions = [eq(ledgerEntriesTable.userId, req.user!.id)];
 
@@ -101,6 +114,10 @@ router.get("/ledger", async (req: AuthRequest, res): Promise<void> => {
 
   if (start) {
     conditions.push(gte(ledgerEntriesTable.entryDate, start));
+  }
+
+  if (end) {
+    conditions.push(lt(ledgerEntriesTable.entryDate, end));
   }
 
   const entries = await db
