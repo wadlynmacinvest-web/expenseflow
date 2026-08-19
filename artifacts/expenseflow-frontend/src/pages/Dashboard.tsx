@@ -55,6 +55,13 @@ export default function Dashboard() {
   const [recentTxLoading, setRecentTxLoading] = useState(true);
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(true);
+  const [editingTxId, setEditingTxId] = useState<number | null>(null);
+  const [editTxForm, setEditTxForm] = useState({ title: "", amount: "", category: CATEGORIES[0], date: "" });
+  const [savingTx, setSavingTx] = useState(false);
+
+  const [editingLedgerId, setEditingLedgerId] = useState<number | null>(null);
+  const [editLedgerForm, setEditLedgerForm] = useState({ counterpartyName: "", amount: "", dueDate: "" });
+  const [savingLedger, setSavingLedger] = useState(false);
 
   const periodQuery = () =>
     period === "custom"
@@ -129,6 +136,88 @@ export default function Dashboard() {
       await loadOverview();
     } catch {
       alert("Failed to update status.");
+    }
+  };
+
+  const startEditTx = (tx: any) => {
+    setEditingTxId(tx.id);
+    setEditTxForm({
+      title: tx.title,
+      amount: String(tx.amount),
+      category: tx.category,
+      date: toLocalDateInput(new Date(tx.transactionDate)),
+    });
+  };
+
+  const cancelEditTx = () => setEditingTxId(null);
+
+  const saveEditTx = async (id: number) => {
+    setSavingTx(true);
+    try {
+      await api.put(`/transactions/${id}`, {
+        title: editTxForm.title,
+        amount: parseFloat(editTxForm.amount),
+        category: editTxForm.category,
+        transactionDate: editTxForm.date,
+      });
+      setEditingTxId(null);
+      await loadRecentTx();
+      await loadOverview();
+    } catch {
+      alert("Failed to update transaction.");
+    } finally {
+      setSavingTx(false);
+    }
+  };
+
+  const deleteTx = async (id: number) => {
+    if (!confirm("Delete this transaction?")) return;
+    try {
+      await api.delete(`/transactions/${id}`);
+      await loadRecentTx();
+      await loadOverview();
+    } catch {
+      alert("Failed to delete transaction.");
+    }
+  };
+
+  const startEditLedger = (entry: any) => {
+    setEditingLedgerId(entry.id);
+    setEditLedgerForm({
+      counterpartyName: entry.counterpartyName,
+      amount: String(entry.amount),
+      dueDate: entry.dueDate ? toLocalDateInput(new Date(entry.dueDate)) : "",
+    });
+  };
+
+  const cancelEditLedger = () => setEditingLedgerId(null);
+
+  const saveEditLedger = async (id: number) => {
+    setSavingLedger(true);
+    try {
+      await api.put(`/ledger/${id}`, {
+        counterpartyName: editLedgerForm.counterpartyName,
+        amount: parseFloat(editLedgerForm.amount),
+        dueDate: editLedgerForm.dueDate || undefined,
+      });
+      setEditingLedgerId(null);
+      await loadLedger();
+      await loadOverview();
+    } catch {
+      alert("Failed to update entry.");
+    } finally {
+      setSavingLedger(false);
+    }
+  };
+
+  const deleteLedger = async (id: number) => {
+    if (!confirm("Delete this entry?")) return;
+    try {
+      await api.delete(`/ledger/${id}`);
+      await loadLedger();
+      await loadOverview();
+    } catch {
+      alert("Failed to delete entry.");
     }
   };
 
@@ -265,35 +354,67 @@ export default function Dashboard() {
                       <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
                         {t === "revenue" ? "Revenue" : "Expense"}
                       </p>
-                      {group.map((tx: any) => (
-                        <div
-                          key={tx.id}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            background: "#f9fafb",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          <div>
-                            <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>{tx.title}</p>
-                            <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
-                              {tx.category} · {new Date(tx.transactionDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <span
+                      {group.map((tx: any) =>
+                        editingTxId === tx.id ? (
+                          <div
+                            key={tx.id}
                             style={{
-                              fontWeight: 700,
-                              color: tx.type === "revenue" ? "#059669" : "#ef4444",
+                              padding: "12px",
+                              background: "#eff6ff",
+                              borderRadius: "8px",
+                              border: "1.5px solid #bfdbfe",
+                              marginBottom: "6px",
                             }}
                           >
-                            {tx.type === "revenue" ? "+" : "-"}{formatCurrency(tx.amount)}
-                          </span>
-                        </div>
-                      ))}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: "8px", marginBottom: "8px" }}>
+                              <input style={inputStyle} value={editTxForm.title} onChange={e => setEditTxForm({ ...editTxForm, title: e.target.value })} />
+                              <input style={inputStyle} type="number" step="0.01" value={editTxForm.amount} onChange={e => setEditTxForm({ ...editTxForm, amount: e.target.value })} />
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                              <select style={inputStyle} value={editTxForm.category} onChange={e => setEditTxForm({ ...editTxForm, category: e.target.value })}>
+                                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                              </select>
+                              <input style={inputStyle} type="date" value={editTxForm.date} onChange={e => setEditTxForm({ ...editTxForm, date: e.target.value })} />
+                            </div>
+                            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                              <button onClick={cancelEditTx} style={{ padding: "6px 12px", background: "#fff", border: "1.5px solid #d1d5db", borderRadius: "6px", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}>Cancel</button>
+                              <button onClick={() => saveEditTx(tx.id)} disabled={savingTx} style={{ padding: "6px 14px", background: savingTx ? "#93c5fd" : "#2563eb", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "0.8rem", color: "#fff", cursor: savingTx ? "not-allowed" : "pointer" }}>{savingTx ? "Saving…" : "Save"}</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            key={tx.id}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "10px 12px",
+                              borderRadius: "8px",
+                              background: "#f9fafb",
+                              marginBottom: "6px",
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>{tx.title}</p>
+                              <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
+                                {tx.category} · {new Date(tx.transactionDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color: tx.type === "revenue" ? "#059669" : "#ef4444",
+                                }}
+                              >
+                                {tx.type === "revenue" ? "+" : "-"}{formatCurrency(tx.amount)}
+                              </span>
+                              <button onClick={() => startEditTx(tx)} title="Edit" style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: "0.9rem", padding: "2px 4px" }}>✏️</button>
+                              <button onClick={() => deleteTx(tx.id)} title="Delete" style={{ background: "none", border: "none", color: "#d1d5db", cursor: "pointer", fontSize: "0.95rem", padding: "2px 4px" }}>✕</button>
+                            </div>
+                          </div>
+                        )
+                      )}
                     </div>
                   );
                 })}
@@ -323,55 +444,82 @@ export default function Dashboard() {
                       <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 0 6px" }}>
                         {s === "outstanding" ? "Outstanding" : "Settled"}
                       </p>
-                      {group.map((entry: any) => (
-                        <div
-                          key={entry.id}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            background: entry.status === "settled" ? "#f0fdf4" : "#f9fafb",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          <div>
-                            <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>
-                              {entry.counterpartyName}
-                            </p>
-                            <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
-                              {entry.type === "payable" ? "You owe" : "Owed to you"}
-                              {entry.dueDate ? ` · due ${new Date(entry.dueDate).toLocaleDateString()}` : ""}
-                            </p>
+                      {group.map((entry: any) =>
+                        editingLedgerId === entry.id ? (
+                          <div
+                            key={entry.id}
+                            style={{
+                              padding: "12px",
+                              background: "#eff6ff",
+                              borderRadius: "8px",
+                              border: "1.5px solid #bfdbfe",
+                              marginBottom: "6px",
+                            }}
+                          >
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: "8px", marginBottom: "8px" }}>
+                              <input style={inputStyle} value={editLedgerForm.counterpartyName} onChange={e => setEditLedgerForm({ ...editLedgerForm, counterpartyName: e.target.value })} />
+                              <input style={inputStyle} type="number" step="0.01" value={editLedgerForm.amount} onChange={e => setEditLedgerForm({ ...editLedgerForm, amount: e.target.value })} />
+                            </div>
+                            <div style={{ marginBottom: "8px" }}>
+                              <input style={inputStyle} type="date" value={editLedgerForm.dueDate} onChange={e => setEditLedgerForm({ ...editLedgerForm, dueDate: e.target.value })} />
+                            </div>
+                            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                              <button onClick={cancelEditLedger} style={{ padding: "6px 12px", background: "#fff", border: "1.5px solid #d1d5db", borderRadius: "6px", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}>Cancel</button>
+                              <button onClick={() => saveEditLedger(entry.id)} disabled={savingLedger} style={{ padding: "6px 14px", background: savingLedger ? "#93c5fd" : "#2563eb", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "0.8rem", color: "#fff", cursor: savingLedger ? "not-allowed" : "pointer" }}>{savingLedger ? "Saving…" : "Save"}</button>
+                            </div>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                color: entry.type === "payable" ? "#f97316" : "#0d9488",
-                              }}
-                            >
-                              {formatCurrency(entry.amount)}
-                            </span>
-                            <button
-                              onClick={() => handleMarkSettled(entry.id, entry.status)}
-                              style={{
-                                fontSize: "0.72rem",
-                                fontWeight: 600,
-                                padding: "4px 8px",
-                                borderRadius: "6px",
-                                border: "1px solid #d1d5db",
-                                background: entry.status === "settled" ? "#dcfce7" : "#fff",
-                                color: entry.status === "settled" ? "#166534" : "#374151",
-                                cursor: "pointer",
-                              }}
-                            >
-                              {entry.status === "settled" ? "Settled" : "Mark Settled"}
-                            </button>
+                        ) : (
+                          <div
+                            key={entry.id}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "10px 12px",
+                              borderRadius: "8px",
+                              background: entry.status === "settled" ? "#f0fdf4" : "#f9fafb",
+                              marginBottom: "6px",
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.92rem" }}>
+                                {entry.counterpartyName}
+                              </p>
+                              <p style={{ fontSize: "0.78rem", color: "#9ca3af" }}>
+                                {entry.type === "payable" ? "You owe" : "Owed to you"}
+                                {entry.dueDate ? ` · due ${new Date(entry.dueDate).toLocaleDateString()}` : ""}
+                              </p>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color: entry.type === "payable" ? "#f97316" : "#0d9488",
+                                }}
+                              >
+                                {formatCurrency(entry.amount)}
+                              </span>
+                              <button
+                                onClick={() => handleMarkSettled(entry.id, entry.status)}
+                                style={{
+                                  fontSize: "0.72rem",
+                                  fontWeight: 600,
+                                  padding: "4px 8px",
+                                  borderRadius: "6px",
+                                  border: "1px solid #d1d5db",
+                                  background: entry.status === "settled" ? "#dcfce7" : "#fff",
+                                  color: entry.status === "settled" ? "#166534" : "#374151",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {entry.status === "settled" ? "Settled" : "Mark Settled"}
+                              </button>
+                              <button onClick={() => startEditLedger(entry)} title="Edit" style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: "0.9rem", padding: "2px 4px" }}>✏️</button>
+                              <button onClick={() => deleteLedger(entry.id)} title="Delete" style={{ background: "none", border: "none", color: "#d1d5db", cursor: "pointer", fontSize: "0.95rem", padding: "2px 4px" }}>✕</button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      )}
                     </div>
                   );
                 })}
