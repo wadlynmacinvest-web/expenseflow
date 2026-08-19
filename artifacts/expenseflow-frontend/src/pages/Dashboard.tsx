@@ -195,35 +195,35 @@ export default function Dashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "20px" }}>
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Revenue</p>
-            <p style={{ fontSize: "1.25rem", fontWeight: 800, whiteSpace: "nowrap", color: "#047857", marginTop: "6px" }}>
+            <p style={{ fontSize: "1.25rem", fontWeight: 800, color: "#047857", marginTop: "6px" }}>
               {overviewLoading ? "—" : formatCurrency(overview?.totalRevenue ?? 0)}
             </p>
           </div>
 
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Expenses</p>
-            <p style={{ fontSize: "1.25rem", fontWeight: 800, whiteSpace: "nowrap", color: "#dc2626", marginTop: "6px" }}>
+            <p style={{ fontSize: "1.25rem", fontWeight: 800, color: "#dc2626", marginTop: "6px" }}>
               {overviewLoading ? "—" : formatCurrency(overview?.totalExpenses ?? 0)}
             </p>
           </div>
 
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Profit</p>
-            <p style={{ fontSize: "1.25rem", fontWeight: 800, whiteSpace: "nowrap", marginTop: "6px", color: overview && overview.totalProfit >= 0 ? "#059669" : "#ef4444" }}>
+            <p style={{ fontSize: "1.25rem", fontWeight: 800, marginTop: "6px", color: overview && overview.totalProfit >= 0 ? "#059669" : "#ef4444" }}>
               {overviewLoading ? "—" : (overview && overview.totalProfit < 0 ? "-" : "") + formatCurrency(Math.abs(overview?.totalProfit ?? 0))}
             </p>
           </div>
 
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Debt (You Owe)</p>
-            <p style={{ fontSize: "1.25rem", fontWeight: 800, whiteSpace: "nowrap", color: "#ea580c", marginTop: "6px" }}>
+            <p style={{ fontSize: "1.25rem", fontWeight: 800, color: "#ea580c", marginTop: "6px" }}>
               {overviewLoading ? "—" : formatCurrency(overview?.totalDebt ?? 0)}
             </p>
           </div>
 
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Credit (Owed to You)</p>
-            <p style={{ fontSize: "1.25rem", fontWeight: 800, whiteSpace: "nowrap", color: "#0ea5a4", marginTop: "6px" }}>
+            <p style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0ea5a4", marginTop: "6px" }}>
               {overviewLoading ? "—" : formatCurrency(overview?.totalCredit ?? 0)}
             </p>
           </div>
@@ -232,7 +232,7 @@ export default function Dashboard() {
             <div style={card()}>
               <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Budget Left</p>
               <p style={{
-                fontSize: "1.25rem", fontWeight: 800, whiteSpace: "nowrap", marginTop: "6px",
+                fontSize: "1.25rem", fontWeight: 800, marginTop: "6px",
                 color: budgetRemaining >= 0 ? "#059669" : "#dc2626",
               }}>
                 {formatCurrency(budgetRemaining)}
