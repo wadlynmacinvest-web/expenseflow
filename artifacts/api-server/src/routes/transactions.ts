@@ -91,4 +91,74 @@ router.get("/transactions", async (req: AuthRequest, res): Promise<void> => {
   res.json(transactions);
 });
 
+
+router.put("/transactions/:id", async (req: AuthRequest, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+
+  if (isNaN(id)) {
+    res.status(400).json({ message: "Invalid transaction id" });
+    return;
+  }
+
+  const { title, amount, category, note, transactionDate } = req.body as {
+    title?: string;
+    amount?: number;
+    category?: string;
+    note?: string;
+    transactionDate?: string;
+  };
+
+  const [existing] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ message: "Transaction not found" });
+    return;
+  }
+
+  if (existing.userId !== req.user!.id) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(transactionsTable)
+    .set({
+      title: title ?? existing.title,
+      amount: amount ?? existing.amount,
+      category: category ?? existing.category,
+      note: note ?? existing.note,
+      transactionDate: transactionDate ? new Date(transactionDate + "T12:00:00Z") : existing.transactionDate,
+    })
+    .where(eq(transactionsTable.id, id))
+    .returning();
+
+  res.json(updated);
+});
+
+router.delete("/transactions/:id", async (req: AuthRequest, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+
+  if (isNaN(id)) {
+    res.status(400).json({ message: "Invalid transaction id" });
+    return;
+  }
+
+  const [existing] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ message: "Transaction not found" });
+    return;
+  }
+
+  if (existing.userId !== req.user!.id) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  await db.delete(transactionsTable).where(eq(transactionsTable.id, id));
+
+  res.status(204).send();
+});
 export default router;

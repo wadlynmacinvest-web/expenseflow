@@ -129,4 +129,72 @@ router.get("/ledger", async (req: AuthRequest, res): Promise<void> => {
   res.json(entries);
 });
 
+
+router.put("/ledger/:id", async (req: AuthRequest, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+
+  if (isNaN(id)) {
+    res.status(400).json({ message: "Invalid ledger id" });
+    return;
+  }
+
+  const { counterpartyName, amount, dueDate, note } = req.body as {
+    counterpartyName?: string;
+    amount?: number;
+    dueDate?: string;
+    note?: string;
+  };
+
+  const [existing] = await db.select().from(ledgerEntriesTable).where(eq(ledgerEntriesTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ message: "Ledger entry not found" });
+    return;
+  }
+
+  if (existing.userId !== req.user!.id) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(ledgerEntriesTable)
+    .set({
+      counterpartyName: counterpartyName ?? existing.counterpartyName,
+      amount: amount ?? existing.amount,
+      note: note ?? existing.note,
+      dueDate: dueDate ? new Date(dueDate + "T12:00:00Z") : existing.dueDate,
+    })
+    .where(eq(ledgerEntriesTable.id, id))
+    .returning();
+
+  res.json(updated);
+});
+
+router.delete("/ledger/:id", async (req: AuthRequest, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+
+  if (isNaN(id)) {
+    res.status(400).json({ message: "Invalid ledger id" });
+    return;
+  }
+
+  const [existing] = await db.select().from(ledgerEntriesTable).where(eq(ledgerEntriesTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ message: "Ledger entry not found" });
+    return;
+  }
+
+  if (existing.userId !== req.user!.id) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  await db.delete(ledgerEntriesTable).where(eq(ledgerEntriesTable.id, id));
+
+  res.status(204).send();
+});
 export default router;
