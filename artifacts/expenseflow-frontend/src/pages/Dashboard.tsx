@@ -210,7 +210,7 @@ export default function Dashboard() {
           <div style={card()}>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Profit</p>
             <p style={{ fontSize: "1.05rem", fontWeight: 800, overflowWrap: "break-word", marginTop: "6px", color: overview && overview.totalProfit >= 0 ? "#059669" : "#ef4444" }}>
-              {overviewLoading ? "—" : (overview && overview.totalProfit < 0 ? "-" : "") + formatCurrency(Math.abs(overview?.totalProfit ?? 0))}
+              {overviewLoading ? "—" : formatCurrency(overview?.totalProfit ?? 0)}
             </p>
           </div>
 
@@ -512,9 +512,8 @@ function toLocalDateInput(d: Date) {
 }
 
 function formatCurrency(val: number) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: "NGN" }).format(val);
-  } catch {
-    return `₦${val.toFixed(2)}`;
-  }
+  const sign = val < 0 ? "-" : "";
+  const abs = Math.abs(val);
+  const formatted = abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${sign}₦${formatted}`;
 }
