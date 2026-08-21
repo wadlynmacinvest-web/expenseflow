@@ -51,7 +51,7 @@ app.use("/api", router);
 
 // Serve the built frontend so this one service hosts both the web app and the API
 if (fs.existsSync(publicDir)) {
-  app.use(express.static(publicDir));
+  app.use(express.static(publicDir, { dotfiles: "allow" }));
 
   // SPA fallback: any non-API GET request returns index.html for client-side routing
   app.get(/^(?!\/api).*/, (_req, res) => {

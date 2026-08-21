@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.onrender.expenseflow_1_723v.twa",
+    "sha256_cert_fingerprints": ["C9:C9:A6:C9:2C:A3:00:25:B6:51:11:F1:74:96:A6:4C:89:10:45:5A:39:2D:04:18:67:85:E7:E7:F5:4A:AC:72"]
+  }
+}]
