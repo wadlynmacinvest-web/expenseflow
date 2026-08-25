@@ -122,7 +122,7 @@ export default function Dashboard() {
       await loadRecentTx();
       await loadLedger();
     } catch (err) {
-      alert("Failed to save.\n" + (err as any)?.message ?? "");
+      alert("Failed to save.\n" + ((err as any)?.message ?? ""));
     } finally {
       setSubmitting(false);
     }
