@@ -114,7 +114,18 @@ export default function Register() {
           </button>
         </form>
 
-        <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "0.9rem" }}>
+        <p style={{ textAlign: "center", marginTop: "20px", color: "#6b7280", fontSize: "0.85rem", lineHeight: 1.5 }}>
+          By creating an account, you acknowledge that you have read and
+          understood our{" "}
+          <Link
+            href="/privacy-policy"
+            style={{ color: "#2563eb", fontWeight: 600, textDecoration: "none" }}
+          >
+            Privacy Policy
+          </Link>.
+        </p>
+
+        <p style={{ textAlign: "center", marginTop: "16px", color: "#6b7280", fontSize: "0.9rem" }}>
           Already have an account?{" "}
           <Link href="/" style={{ color: "#2563eb", fontWeight: 600, textDecoration: "none" }}>
             Sign In
